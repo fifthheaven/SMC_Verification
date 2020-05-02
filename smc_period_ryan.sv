@@ -10,16 +10,12 @@ class smc_period extends uvm_scoreboard;
 
 	`uvm_component_utils(smc_period)
 	uvm_tlm_analysis_fifo #(rf_msg) rffifo;
-	uvm_tlm_analysis_fifo #(command_msg) cmdfifo;
+	uvm_tlm_analysis_fifo #(align_msg) alignfifo;
 	uvm_analysis_port #(period_msg) prdport;
 
-	period_msg prd_msg;
+	period_msg p_msg;
 	rf_msg r_msg;
-	command_msg cmd_msg;  //need command msg to determine align mode and high/low active
-	realtime old_timestamp_mnm,old_timestamp_mnp;
-	reg [7:0] mnm_count,mnp_count;
-	reg [7:0] mnm_period;
-	reg [7:0] mnp_period;
+	align_msg a_msg;  //need command msg to determine align mode and high/low active
 
 	function new(string name="smc_period", uvm_component par=null);
 		super.new(name, par);
@@ -28,60 +24,76 @@ class smc_period extends uvm_scoreboard;
 	function void build_phase(uvm_phase phase);
 		super.build_phase(phase);
 		rffifo = new("rffifo", this);
-		old_r_msg = new(Stay);
-		prd_msg=new();
-		mnm_count=0;
-		mnp_count=0;
+		alignfifo = new("alignfifo", this);
+		prdport = new("prdport",this);
+		p_msg=new();
 	endfunction : build_phase
 
 	task run_phase(uvm_phase phase);
-		old_timestamp=$realtime
 		forever begin
 			rffifo.get(r_msg);
-			cmdfifo.get(cmd_msg);
-			if(cmd_msg.align!=center) begin
-				for (int i=0; i<12; i+=1) begin
-					if (r_msg.rf_mnm[i] == raise) begin
-						prd_msg.mnm_period[i]=mnm_count;
-						mnm_count=0;
-						old_timestamp_mnm=r_msg.timestamp;
+			alignfifo.get(a_msg);
+			for(int i=0;i<12;i+=1) begin
+				if(a_msg.mnm_a_m[i]!=none && a_msg.mnm_a_m[i]!=center) begin
+					if (r_msg.rf_mnm[i] == Rising) begin
+						p_msg.mnm_count[i] += 1;
+						p_msg.mnm_per[i] = p_msg.mnm_count[i];
+						p_msg.mnm_count[i] = 0;
 					end
-					else begin
-						mnm_count=mnm_count+1;
+					else if (r_msg.rf_mnm[i] == x_z) begin
+						p_msg.mnm_count[i] = 0;
+						//`uvm_info("PERIOD", "x or z shows up.", UVM_LOW)
 					end
-
-					if (r_msg.rf_mnp[i] == raise) begin
-						prd_msg.mnp_period[i]=mnp_count;
-						mnp_count=0;
-						old_timestamp_mnp=r_msg.timestamp;
-					end
-					else begin
-						mnp_count=mnp_count+1;
-					end
+					else
+						p_msg.mnm_count[i] += 1;
 				end
-			end
-			else begin
-				for (int i=0; i<12; i+=1) begin
-					if (r_msg.rf_mnm[i] == raise) begin
-						prd_msg.mnm_period[i]=mnm_count/2;
-						mnm_count=0;
-						old_timestamp_mnm=r_msg.timestamp;
+				else if(a_msg.mnm_a_m[i]==center) begin
+					if (r_msg.rf_mnm[i] == Rising) begin
+						p_msg.mnm_count[i] += 1;
+						p_msg.mnm_per[i] = p_msg.mnm_count[i]/2;
+						p_msg.mnm_count[i] = 0;
 					end
-					else begin
-						mnm_count=mnm_count+1;
+					else if (r_msg.rf_mnm[i] == x_z) begin
+						p_msg.mnm_count[i] = 0;
+						//`uvm_info("PERIOD", "x or z shows up.", UVM_LOW)
 					end
-
-					if (r_msg.rf_mnp[i] == raise) begin
-						prd_msg.mnp_period[i]=mnp_count/2;
-						mnp_count=0;
-						old_timestamp_mnp=r_msg.timestamp;
-					end
-					else begin
-						mnp_count=mnp_count+1;
-					end
+					else
+						p_msg.mnm_count[i] += 1;
 				end
+				else
+					p_msg.mnm_count[i] = 0;
+
+				if(a_msg.mnp_a_m[i]!=none && a_msg.mnp_a_m[i]!=center) begin
+					if (r_msg.rf_mnp[i] == Rising) begin
+						p_msg.mnp_count[i] += 1;
+						p_msg.mnp_per[i] = p_msg.mnp_count[i];
+						p_msg.mnp_count[i] = 0;
+					end
+					else if (r_msg.rf_mnp[i] == x_z) begin
+						p_msg.mnp_count[i] = 0;
+						//`uvm_info("PERIOD", "x or z shows up.", UVM_LOW)
+					end
+					else
+						p_msg.mnp_count[i] += 1;
+				end
+				else if(a_msg.mnp_a_m[i]==center) begin
+					if (r_msg.rf_mnp[i] == Rising) begin
+						p_msg.mnp_count[i] += 1;
+						p_msg.mnp_per[i] = p_msg.mnp_count[i]/2;
+						p_msg.mnp_count[i] = 0;
+					end
+					else if (r_msg.rf_mnp[i] == x_z) begin
+						p_msg.mnp_count[i] = 0;
+						//`uvm_info("PERIOD", "x or z shows up.", UVM_LOW)
+					end
+					else
+						p_msg.mnp_count[i] += 1;
+				end
+				else
+					p_msg.mnp_count[i] = 0;
 			end
 		end
+		prdport.write(p_msg);
 	endtask : run_phase
 
 endclass : smc_period

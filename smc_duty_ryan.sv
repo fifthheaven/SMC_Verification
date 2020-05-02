@@ -8,19 +8,19 @@
 
 class smc_duty extends uvm_scoreboard;
 
-	`uvm_component_utils(smc_period)
+	`uvm_component_utils(smc_duty)
 	uvm_tlm_analysis_fifo #(rf_msg) rffifo;
-	uvm_tlm_analysis_fifo #(command_msg) cmdfifo;
-	uvm_analysis_port #(period_counter_msg) duty_port;
+	uvm_tlm_analysis_fifo #(active_msg) acfifo;
+	uvm_tlm_analysis_fifo #(align_msg) alignfifo;
+	uvm_analysis_port #(duty_msg) duty_port;
 
 	rf_msg r_msg;
+	active_msg ac_msg;
+	align_msg a_msg;
 	duty_msg d_msg;
-	command_msg cmd_msg;  //need command msg to determine align mode and high/low active
-	realtime old_timestamp_mnm,old_timestamp_mnp;
-	reg [7:0] mnm_count,mnp_count;
-	reg [7:0] mnm_duty;
-	reg [7:0] mnp_duty;
-	rf_msg [11:0] old_rf_mnm,old_rf_mnp;
+
+	rf_msg old_rf_mnm[11:0];
+	rf_msg old_rf_mnp[11:0];
 
 	function new(string name="smc_duty", uvm_component par=null);
 		super.new(name, par);
@@ -29,130 +29,102 @@ class smc_duty extends uvm_scoreboard;
 	function void build_phase(uvm_phase phase);
 		super.build_phase(phase);
 		rffifo = new("rffifo", this);
-		old_r_msg = new(Stay);
-		cmd_msg=new(); //need revise,
+		acfifo = new("acfifo", this);
+		alignfifo = new("alignfifo", this);
+		duty_port = new("duty_port",this);
 		d_msg=new(); //need revise
-		mnm_count=0;
-		mnp_count=0;
-		old_rf_mnm=stay;
-		old_rf_mnp=stay;
 	endfunction : build_phase
 
 	task run_phase(uvm_phase phase);
-		old_timestamp=$realtime
 		forever begin
 			rffifo.get(r_msg);
-			cmdfifo.get(cmd_msg);
-			if(cmd_msg.align!=center) begin
-				for (int i=0; i<12; i+=1) begin
-					if(cmd_msg.low_active==1) begin
-						if (r_msg.rf_mnm[i] == raise && old_rf_mnm[i]==fall) begin
-							d_msg.mnm_duty[i]=mnm_count;
-							mnm_count=0;
-							old_timestamp_mnm=r_msg.timestamp;
-							old_rf_mnm[i]=r_msg.rf_mnm[i];
+			acfifo.get(ac_msg);
+			alignfifo.get(a_msg);
+			for(int i=0;i<12;i+=1) begin
+				if(ac_msg.mnm_ac_m[i]==high) begin
+					if(a_msg.mnm_a_m[i]!=none && a_msg.mnm_a_m[i]!=center) begin
+						if (r_msg.rf_mnm[i] == Fall) begin
+							if(old_rf_mnm[i]==Rising) begin
+								d_msg.mnm_count[i] += 1;
+								d_msg.mnm_duty[i] = d_msg.mnm_count[i];
+								d_msg.mnm_count[i] = 0;
+								old_rf_mnm[i]=r_msg.rf_mnm[i]
+							end
 						end
-						else begin
-							mnm_count=mnm_count+1;
-							if(r_msg.rf_mnm[i] == fall)
-								old_rf_mnm[i]=r_msg.rf_mnm[i];
+						else if (r_msg.rf_mnm[i] == Rising) begin
+							if(old_rf_mnm[i]==Fall) begin
+								d_msg.mnm_count[i] = 0;
+								old_rf_mnm[i]=r_msg.rf_mnm[i]
+							end
 						end
-
-						if (r_msg.rf_mnp[i] == raise && old_rf_mnp[i]==fall) begin
-							d_msg.mnp_duty[i]=mnm_count;
-							mnp_count=0;
-							old_timestamp_mnp=r_msg.timestamp;
-							old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
-						else begin
-							mnp_count=mnp_count+1;
-							if(r_msg.rf_mnp[i] == fall)
-								old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
+						else
+							p_msg.mnm_count[i] += 1;
 					end
-					else begin
-						if (r_msg.rf_mnm[i] == fall && old_rf_mnm[i]==raise) begin
-							d_msg.mnm_duty[i]=mnp_count;
-							mnm_count=0;
-							old_timestamp_mnm=r_msg.timestamp;
-							old_rf_mnm[i]=r_msg.rf_mnm[i];
+					else if(a_msg.mnm_a_m[i]==center) begin
+						if (r_msg.rf_mnm[i] == Fall) begin
+							if(old_rf_mnm[i]==Rising) begin
+								d_msg.mnm_count[i] += 1;
+								d_msg.mnm_duty[i] = d_msg.mnm_count[i]/2;
+								d_msg.mnm_count[i] = 0;
+								old_rf_mnm[i]=r_msg.rf_mnm[i]
+							end
 						end
-						else begin
-							mnm_count=mnm_count+1;
-							if(r_msg.rf_mnm[i] == raise)
-								old_rf_mnm[i]=r_msg.rf_mnm[i];
+						else if (r_msg.rf_mnm[i] == Rising) begin
+							if(old_rf_mnm[i]==Fall) begin
+								d_msg.mnm_count[i] = 0;
+								old_rf_mnm[i]=r_msg.rf_mnm[i]
+							end
 						end
-
-						if (r_msg.rf_mnp[i] == fall && old_rf_mnp[i]==raise) begin
-							d_msg.mnp_duty[i]=mnp_count;
-							mnp_count=0;
-							old_timestamp_mnp=r_msg.timestamp;
-							old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
-						else begin
-							mnp_count=mnp_count+1;
-							if(r_msg.rf_mnp[i] == raise)
-								old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
+						else
+							p_msg.mnm_count[i] += 1;
 					end
+					else
+						p_msg.mnm_count[i] = 0;
 				end
-			end
-			else begin
-				for (int i=0; i<12; i+=1) begin
-					if(cmd_msg.low_active==1) begin
-						if (r_msg.rf_mnm[i] == raise && old_rf_mnm[i]==fall) begin
-							d_msg.mnm_duty[i]=mnm_count/2;
-							mnm_count=0;
-							old_timestamp_mnm=r_msg.timestamp;
-							old_rf_mnm[i]=r_msg.rf_mnm[i];
-						end
-						else begin
-							mnm_count=mnm_count+1;
-							if(r_msg.rf_mnm[i] == fall)
-								old_rf_mnm[i]=r_msg.rf_mnm[i];
-						end
 
-						if (r_msg.rf_mnp[i] == raise && old_rf_mnp[i]==fall) begin
-							d_msg.mnp_duty[i]=mnp_count/2;
-							mnp_count=0;
-							old_timestamp_mnp=r_msg.timestamp;
-							old_rf_mnp[i]=r_msg.rf_mnp[i];
+				if(ac_msg.mnp_ac_m[i]==high) begin
+					if(a_msg.mnp_a_m[i]!=none && a_msg.mnp_a_m[i]!=center) begin
+						if (r_msg.rf_mnp[i] == Fall) begin
+							if(old_rf_mnp[i]==Rising) begin
+								d_msg.mnp_count[i] += 1;
+								d_msg.mnp_duty[i] = d_msg.mnp_count[i];
+								d_msg.mnp_count[i] = 0;
+								old_rf_mnp[i]=r_msg.rf_mnp[i]
+							end
 						end
-						else begin
-							mnp_count=mnp_count+1;
-							if(r_msg.rf_mnp[i] == fall)
-								old_rf_mnp[i]=r_msg.rf_mnp[i];
+						else if (r_msg.rf_mnp[i] == Rising) begin
+							if(old_rf_mnp[i]==Fall) begin
+								d_msg.mnp_count[i] = 0;
+								old_rf_mnp[i]=r_msg.rf_mnp[i]
+							end
 						end
+						else
+							p_msg.mnp_count[i] += 1;
 					end
-					else begin
-						if (r_msg.rf_mnm[i] == fall && old_rf_mnm[i]==raise) begin
-							d_msg.mnm_duty[i]=mnm_count/2;
-							mnm_count=0;
-							old_timestamp_mnm=r_msg.timestamp;
-							old_rf_mnm[i]=r_msg.rf_mnm[i];
+					else if(a_msg.mnp_a_m[i]==center) begin
+						if (r_msg.rf_mnp[i] == Fall) begin
+							if(old_rf_mnp[i]==Rising) begin
+								d_msg.mnp_count[i] += 1;
+								d_msg.mnp_duty[i] = d_msg.mnp_count[i]/2;
+								d_msg.mnp_count[i] = 0;
+								old_rf_mnp[i]=r_msg.rf_mnp[i]
+							end
 						end
-						else begin
-							mnm_count=mnm_count+1;
-							if(r_msg.rf_mnm[i] == raise)
-								old_rf_mnm[i]=r_msg.rf_mnm[i];
+						else if (r_msg.rf_mnp[i] == Rising) begin
+							if(old_rf_mnp[i]==Fall) begin
+								d_msg.mnp_count[i] = 0;
+								old_rf_mnp[i]=r_msg.rf_mnp[i]
+							end
 						end
-
-						if (r_msg.rf_mnp[i] == fall && old_rf_mnp[i]==raise) begin
-							d_msg.mnp_duty[i]=mnp_count/2;
-							mnp_count=0;
-							old_timestamp_mnp=r_msg.timestamp;
-							old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
-						else begin
-							mnp_count=mnp_count+1;
-							if(r_msg.rf_mnp[i] == raise)
-								old_rf_mnp[i]=r_msg.rf_mnp[i];
-						end
+						else
+							p_msg.mnp_count[i] += 1;
 					end
+					else
+						p_msg.mnp_count[i] = 0;
 				end
 			end
 		end
-		pc_port.write(d_msg);
+		duty_port.write(d_msg);
 	endtask : run_phase
 
 endclass : smc_duty
