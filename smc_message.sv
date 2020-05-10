@@ -58,8 +58,8 @@ typedef enum {empty, mcper, mcctl1, mcctl0, mccc3, mccc2, mccc1, mccc0, mccc7, m
 class command_msg;
 
 	// r: control register; data: data stored in the address
-	regsss r;
-	logic [15:0] data;
+	regsss  r;
+	logic [15:0] data[6:0];
 	realtime timestamp;
 
 	function new(regsss R, logic D);
@@ -127,14 +127,14 @@ class duty_msg;
 
 endclass : duty_msg
 
-typedef enum {high,low} active_mode;
+typedef enum {high_ac,low_ac,high,low} active_mode;
 class active_msg;
 	active_mode mnm_ac_m[11:0];
 	active_mode mnp_ac_m[11:0];
 	function new(active_mode a);
 		for(int i=0;i<12;i+=1) begin
-			this.mnm_a_m[i]=a;
-			this.mnp_a_m[i]=a;
+			this.mnm_ac_m[i]=a;
+			this.mnp_ac_m[i]=a;
 		end
 	endfunction : new
 endclass:active_mode
@@ -164,6 +164,7 @@ typedef enum {none, fail, success} verif;
 class recirc_sign_msg;
 	verif mnm[11:0];
 	verif mnp[11:0];
+	reg [15:0] cdc [3:0];
 	realtime timestamp;
 
 	function new();
@@ -171,6 +172,7 @@ class recirc_sign_msg;
 			mnm[i] = none;
 			mnp[i] = none;
 		end
+		data=00;
 		this.timestamp = $realtime;
 	endfunction : new
 endclass : recirc_sign_msg
