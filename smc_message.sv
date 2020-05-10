@@ -53,13 +53,14 @@ class rf_msg;
 
 endclass : rf_msg
 
+/////////////////////////////////////////////////////////////////////////////////////////////////
 // Input detector message
 typedef enum {empty, mcper, mcctl1, mcctl0, mccc3, mccc2, mccc1, mccc0, mccc7, mccc6, mccc5, mccc4, mccc11, mccc10, mccc9, mccc8, mcdc1, mcdc0, mcdc3, mcdc2, mcdc5, mcdc4, mcdc7, mcdc6, mcdc9, mcdc8, mcdc11, mcdc10} regsss;
 class command_msg;
 
 	// r: control register; data: data stored in the address
 	regsss  r;
-	logic [15:0] data[6:0];
+	logic [15:0] data[6:0];  //this part changed
 	realtime timestamp;
 
 	function new(regsss R, logic D);
@@ -69,8 +70,8 @@ class command_msg;
 	endfunction : new
 
 endclass : command_msg;
-
-
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////
 class period_msg;
 
 	// count: couter for period; per: difference between previous "rising"
@@ -92,6 +93,8 @@ class period_msg;
 	endfunction : new
 
 endclass : period_msg
+/////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 typedef enum {none,left,right,center} align_mode;
 class align_msg;
@@ -105,6 +108,7 @@ class align_msg;
 	endfunction : new
 endclass:align_msg
 
+/////////////////////////////////////////////////////////////////////////////////////////////////
 class duty_msg;
 
 	// count: couter for period; per: difference between previous "rising"
@@ -126,7 +130,9 @@ class duty_msg;
 	endfunction : new
 
 endclass : duty_msg
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
+/////////////////////////////////////////////////////////////////////////////////////////////////
 typedef enum {high_ac,low_ac,high,low} active_mode;
 class active_msg;
 	active_mode mnm_ac_m[11:0];
@@ -138,7 +144,7 @@ class active_msg;
 		end
 	endfunction : new
 endclass:active_mode
-
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 typedef enum {zero, counting, halt} per_status;
 class period_counter_msg;
@@ -159,20 +165,21 @@ class period_counter_msg;
 	endfunction : new
 endclass : period_counter_msg
 
-
+/////////////////////////////////////////////////////////////////////////////////////////////////
 typedef enum {none, fail, success} verif;
 class recirc_sign_msg;
 	verif mnm[11:0];
 	verif mnp[11:0];
-	reg [15:0] cdc [3:0];
+	reg [15:0] cdc [3:0]; //cdc data added
 	realtime timestamp;
 
 	function new();
 		for (int i=0; i<12; i+=1) begin
 			mnm[i] = none;
 			mnp[i] = none;
+			cdc[i] = 0; //new cdc data
 		end
-		data=00;
 		this.timestamp = $realtime;
 	endfunction : new
 endclass : recirc_sign_msg
+/////////////////////////////////////////////////////////////////////////////////////////////////

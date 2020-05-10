@@ -3,10 +3,15 @@ class smc_commanddet extends uvm_scoreboard;
 	`uvm_component_utils(smc_commanddet)
 	uvm_tlm_analysis_fifo #(in_msg) cdfifo;
 	uvm_analysis_port #(command_msg) cd_port;
-	uvm_analysis_port #(recirc_sign_msg) rs_port;
+
+	//connected to the SMC_command_split rs_fifo
+	uvm_analysis_port #(recirc_sign_msg) rs_port;  
+	////////////////////////////////////////////////////////////////////////////////////
 
 	in_msg i_msg;
-	recirc_sign_msg rs_msg;
+	////////////////////////////////////////////
+	recirc_sign_msg rs_msg;  ///////////////////
+	////////////////////////////////////////////
 	logic [6:0] old_addr;
 	logic [15:0] old_data;
 	command_msg c_msg;
@@ -43,6 +48,8 @@ class smc_commanddet extends uvm_scoreboard;
 					7'b0011001: c_msg.r = mccc10;	
 					7'b0011010: c_msg.r = mccc9;	
 					7'b0011011: c_msg.r = mccc8;	
+					////////////////////////////////////////////////////////////////////////////////////////////////
+					//this part is in order to store cdc data into rs_msg 
 					7'b0100000: begin c_msg.r = mcdc1; rs_msg.cdc[1]=i_msg.QDATAIN; end
 					7'b0100010: begin c_msg.r = mcdc0; rs_msg.cdc[0]=i_msg.QDATAIN; end	
 					7'b0100100: begin c_msg.r = mcdc3; rs_msg.cdc[3]=i_msg.QDATAIN; end	
@@ -55,6 +62,7 @@ class smc_commanddet extends uvm_scoreboard;
 					7'b0110010: begin c_msg.r = mcdc8; rs_msg.cdc[8]=i_msg.QDATAIN; end	
 					7'b0110100: begin c_msg.r = mcdc11; rs_msg.cdc[10]=i_msg.QDATAIN; end	
 					7'b0110110: begin c_msg.r = mcdc10; rs_msg.cdc[11]=i_msg.QDATAIN; end
+					/////////////////////////////////////////////////////////////////////////////////////////////////
 					default: c_msg.r = empty;	
 				endcase
 				c_msg.timestamp = $realtime;
@@ -62,7 +70,9 @@ class smc_commanddet extends uvm_scoreboard;
 				`uvm_info("COMMAND DET", $sformatf("%s = %d @ %0t", c_msg.r, c_msg.data, c_msg.timestamp), UVM_LOW)
 				// write to the port when INPUT changes
 				cd_port.write(c_msg);
+				/////////////////////////////////////////////////////////////////////////////////////////////////
 				rs_port.write(rs_msg);
+				/////////////////////////////////////////////////////////////////////////////////////////////////
 			end
 			old_addr = i_msg.QADDR;
 			old_data = i_msg.QDATAIN;
